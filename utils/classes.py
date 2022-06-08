@@ -5,12 +5,11 @@ from typing import List
 from asyncio.exceptions import TimeoutError
 
 from discord import Embed as DiscordEmbed
+from discord.ext.commands import Bot as DiscordBot
 from expiringdict import ExpiringDict
-from discord.ext.commands import (
-    Bot as DiscordBot)
 
-from utils.utils import fetch_array_item, ZWSP
-from utils.map_data import MAIN_MAP
+from utils.misc import fetch_array_item, ZWSP
+
 
 # Override default color for bot fanciness
 class Embed(DiscordEmbed):
@@ -117,9 +116,6 @@ class Bot(DiscordBot):
         # Global bot directory
         self.cwd = getcwd()
 
-        # Change first half of text status
-        self.text_status = f"{kwargs.get('command_prefix')}help"
-
         # Tokens
         self.auth = kwargs.pop("auth")
 
@@ -127,10 +123,11 @@ class Bot(DiscordBot):
         self.defaults = kwargs.pop("defaults")
         
         # Database
+        self.use_firebase = kwargs.pop("use_firebase")
         self.database = kwargs.pop("database")  # Online
         self.user_data = kwargs.pop("user_data") # Local
         self.config = self.user_data["config"]  # Shortcut for user_data['config']
-        print("[] Data and configurations loaded.")
+        print("[HRB] Data and configurations loaded.")
 
         # Get the channel ready for errorlog
         # Bot.get_channel method not available until on_ready
@@ -138,10 +135,11 @@ class Bot(DiscordBot):
 
         # Cooldown to be used in all loops and the beginnings of commands.
         # Users whose ID is in here cannot interact with the bot for `max_age_seconds`
-        self.global_cooldown = ExpiringDict(max_len=float('inf'), max_age_seconds=2)
+        self.global_cooldown = ExpiringDict(max_len=float('inf'), max_age_seconds=1)
 
-        # Users whose ID is in here cannot create another PDA until the one they are using expires.
-        self.pda_active = dict()
+        # A cache of loaded doujins, it will fill as doujins are retrieved by code.
+        # Values expire in 3 days since addition or resets when bot reloads.
+        self.error_contexts = ExpiringDict(max_len=float('inf'), max_age_seconds=259200)
         
         # Load bot arguments into __init__
         super().__init__(*args, **kwargs)
@@ -172,7 +170,7 @@ class Bot(DiscordBot):
         return
 
     async def wait_for(self, *args, **kwargs):
-        """Delay primary Bot.wait_for listener. Raises CommandOnCooldown if on cooldown."""
+        """Delay primary Bot.wait_for listener. Raises BotInteractionCooldown if on cooldown."""
         bypass_cooldown: bool = kwargs.pop("bypass_cooldown", False)
         if bypass_cooldown:
             return await super().wait_for(*args, **kwargs)
@@ -189,113 +187,11 @@ class Bot(DiscordBot):
             else: self.global_cooldown.update({user.id:"placeholder"})
             return reaction, user
         
+        elif "raw_reaction_add" in args:
+            payload = await super().wait_for(*args, **kwargs)
+            if payload.user_id in self.global_cooldown: raise BotInteractionCooldown("Bot interaction on cooldown.")
+            else: self.global_cooldown.update({payload.user_id:"placeholder"})
+            return payload
+        
         else:
             return await super().wait_for(*args, **kwargs)
-
-class PDA:
-    def __init__(self, bot, ctx):
-        self.bot = bot
-        self.ctx = ctx
-        self.data = bot.user_data["UserData"][str(ctx.author.id)]
-
-        # Will be a new channel for the PDA
-        self.am_channel = None
-
-        # Four messages are created for the PDA channel.
-        # 0] User Interface
-        # 1] Reaction controller row 1: arrow_upper_left | arrow_up    | arrow_upper_right
-        # 2] Reaction controller row 2: arrow_left       | blue_square | arrow_right
-        # 3] Reaction controller row 3: arrow_lower_left | arrow_down  | arrow_lower_right
-        self.active_messages = [None, None, None, None, None]
-
-        # Embed for the User Interface active message.
-        self.am_embed = None
-        self.current_page = 0
-        self.in_subpage = False
-
-    async def setup(self):
-        self.am_channel = await self.ctx.guild.create_text_channel("📱asterisk-pda")
-        self.active_messages[0] = await self.am_channel.send(
-            embed=Embed(description="Waiting for PDA to start..."))
-        
-        self.active_messages[1] = await self.am_channel.send(ZWSP)
-        await self.active_messages[1].add_reaction("↖")
-        await self.active_messages[1].add_reaction("⬆")
-        await self.active_messages[1].add_reaction("↗")
-        self.active_messages[2] = await self.am_channel.send(ZWSP)
-        await self.active_messages[2].add_reaction("⬅")
-        await self.active_messages[2].add_reaction("🔎")
-        await self.active_messages[2].add_reaction("➡")
-        self.active_messages[3] = await self.am_channel.send(ZWSP)
-        await self.active_messages[3].add_reaction("↙")
-        await self.active_messages[3].add_reaction("⬇")
-        await self.active_messages[3].add_reaction("↘")
-        self.active_messages[4] = await self.am_channel.send(ZWSP)
-        await self.active_messages[4].add_reaction("❎")
-        await self.active_messages[4].add_reaction("❌")
-        await self.active_messages[4].add_reaction("✅")
-    
-    async def start(self):
-        coordinates = f"{self.data['Location'][0][0]}-{self.data['Location'][0][1]}={self.data['Location'][1][0]}-{self.data['Location'][1][1]}"
-        sector = fetch_array_item(MAIN_MAP, self.data['Location'][0][0], 
-        self.data['Location'][0][1])['Name']
-        area = fetch_array_item(fetch_array_item(MAIN_MAP, self.data['Location'][0][0], self.data['Location'][0][1])['Map'], 
-            self.data['Location'][1][0], self.data['Location'][1][1])["Name"]
-
-        location = Embed(
-            title="Map"
-        ).add_field(
-                name="Current Sector",
-                value=f"{sector} | {coordinates}"
-        ).add_field(
-            name="Current Area",
-            value=f"{area}")
-
-        await self.active_messages[0].edit(embed=location)
-        
-        while True:
-            try:
-                reaction, user = await self.bot.wait_for("reaction_add", timeout=300,
-                    check=lambda r,u: r.message.id in [m.id for m in self.active_messages] and \
-                        u.id==self.ctx.author.id)
-            except TimeoutError:
-                await self.am_channel.delete()
-                return
-            
-            except BotInteractionCooldown:
-                continue
-            
-            else:
-                await reaction.message.remove_reaction(str(reaction.emoji), user)
-
-                if not self.in_subpage:
-                    # Location data
-                    coordinates = f"{self.data['Location'][0][1]}-{self.data['Location'][0][0]}={self.data['Location'][1][0]}-{self.data['Location'][1][1]}"
-                    sector = fetch_array_item(MAIN_MAP, self.data['Location'][0][0], 
-                    self.data['Location'][0][1])['Name']
-                    area = fetch_array_item(fetch_array_item(MAIN_MAP, self.data['Location'][0][0], self.data['Location'][0][1])['Map'], 
-                        self.data['Location'][1][0], self.data['Location'][1][1])["Name"]
-
-                    menus = [
-                        {"Name": "Map",
-                         "Embed": Embed(title="Map")
-                            .add_field(
-                                name="Current Sector",
-                                value=f"{sector} | {coordinates}")
-                            .add_field(
-                                name="Current Area",
-                                value=f"{area}")
-                            .add_field(
-                                inline=False,
-                                name="Description")
-                        },
-                        {"Name": "Inventory",
-                         "Embed": Embed()},
-                        {"Name": "Armor and Stats",
-                         "Embed": Embed()},
-                        {"Name": "Friends",
-                         "Embed": Embed()}
-                    ]
-
-                await self.active_messages[0].edit(embed=menus[self.current_page]["Embed"])
-

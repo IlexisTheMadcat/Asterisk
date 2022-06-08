@@ -27,11 +27,11 @@ class MiscCommands(Cog):
             manage_roles=True)
 
         emb = Embed(
-            description=f'[Click Here]({oauth_url(app_info.id, permissions)}) '
+            description=f'[Click Here]({oauth_url(app_info.id, permissions=permissions)}) '
                         f'to invite this bot to your server.\n'
         ).set_author(
             name=f"Invite {self.bot.user.name}",
-            icon_url=self.bot.user.avatar_url
+            icon_url=self.bot.user.avatar.url
         ).set_footer(
             text="Provided by MechHub Bot Factory")
         
@@ -72,7 +72,7 @@ __`invite`__
 """
         ).set_author(
                 name=self.bot.user.name,
-                icon_url=self.bot.user.avatar_url
+                icon_url=self.bot.user.avatar.url
         ).set_footer(
             text="Provided by MechHub Bot Factory")
         
@@ -91,10 +91,10 @@ __`invite`__
             description=message.content
         ).set_author(
             name=self.bot.user.name,
-            icon_url=self.bot.user.avatar_url
+            icon_url=self.bot.user.avatar.url
         ).set_footer(
             text="Provided by MechHub Bot Factory"
         ))
 
-def setup(bot):
-    bot.add_cog(MiscCommands(bot))
+async def setup(bot):
+    await bot.add_cog(MiscCommands(bot))

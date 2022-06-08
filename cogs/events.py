@@ -3,7 +3,6 @@ from sys import exc_info
 from contextlib import suppress
 from copy import deepcopy
 
-from discord import Embed
 from discord.message import Message
 from discord.errors import Forbidden, HTTPException
 from discord.ext.commands.cog import Cog
@@ -17,11 +16,18 @@ from discord.ext.commands.errors import (
     NotOwner, BadArgument,
     CheckFailure)
 
+from utils.classes import Embed
 
 class Events(Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # Interaction events
+    # --------------------------------------------------------------------------------------------------------------------------
+    @Cog.listener()
+    async def on_interaction(self, interaction):
+        pass
+        
     # Message events
     # --------------------------------------------------------------------------------------------------------------------------
     @Cog.listener()
@@ -51,7 +57,7 @@ class Events(Cog):
         # Don't respond to bots.
         if msg.author.id == self.bot.user.id:
             return  
-
+        
         # Checks if the message is any attempted command.
         if msg.content.startswith(self.bot.command_prefix) and not msg.content.startswith(self.bot.command_prefix+" "):
             if str(msg.author.id) not in self.bot.user_data["UserData"]:
@@ -156,5 +162,5 @@ class Events(Cog):
                                 "was blocked from sending messages there.",
                         embed=em)
 
-def setup(bot):
-    bot.add_cog(Events(bot))
+async def setup(bot):
+    await bot.add_cog(Events(bot))

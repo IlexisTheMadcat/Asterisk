@@ -1,4 +1,8 @@
-*Workspace/Files/dumbshit.json*
-*poetry.lock*
-*pyproject.toml*
-*__pycache__*
+__pycache__
+.venv
+.vs
+Storage
+Workspace
+user_data.json
+ServiceAccountKey.json
+start.bat

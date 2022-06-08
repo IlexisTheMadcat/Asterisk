@@ -15,6 +15,7 @@ from discord.ext.commands.errors import (
     ExtensionNotLoaded,
     NoEntryPointError,
 )
+from discord.app_commands import CommandTree
 
 
 class Admin(Cog):
@@ -55,7 +56,8 @@ class Admin(Cog):
         module = f"cogs.{module}"
 
         try:
-            self.bot.load_extension(module)
+            await self.bot.load_extension(module)
+            await self.bot.tree.sync()
 
         except ExtensionNotFound:
             em = Embed(
@@ -126,7 +128,7 @@ class Admin(Cog):
                 description=f"Module `{module}` loaded successfully",
                 color=0x00ff00
             )
-            print(f"[] Loaded module \"{module}\".")
+            print(f"[HRB] Loaded module \"{module}\".")
 
         await ctx.send(embed=em)
 
@@ -141,7 +143,8 @@ class Admin(Cog):
         module = f"cogs.{module}"
 
         try:
-            self.bot.unload_extension(module)
+            await self.bot.unload_extension(module)
+            await self.bot.tree.sync()
 
         except ExtensionNotLoaded:
             em = Embed(
@@ -177,7 +180,7 @@ class Admin(Cog):
                 description=f"Module `{module}` unloaded successfully",
                 color=0x00ff00
             )
-            print(f"[] Unloaded module \"{module}\".")
+            print(f"[HRB] Unloaded module \"{module}\".")
         
         await ctx.send(embed=em)
 
@@ -192,7 +195,8 @@ class Admin(Cog):
         module = f"cogs.{module}"
 
         try:
-            self.bot.reload_extension(module)
+            await self.bot.reload_extension(module)
+            await self.bot.tree.sync()
 
         except ExtensionNotLoaded:
             em = Embed(
@@ -263,7 +267,7 @@ class Admin(Cog):
                 description=f"Module `{module}` reloaded successfully",
                 color=0x00ff00
             )
-            print(f"[] Reloaded module \"{module}\".")
+            print(f"[HRB] Reloaded module \"{module}\".")
     
         await ctx.send(embed=em)
 
@@ -445,5 +449,5 @@ class Admin(Cog):
             return
 
 
-def setup(bot):
-    bot.add_cog(Admin(bot))
+async def setup(bot):
+    await bot.add_cog(Admin(bot))

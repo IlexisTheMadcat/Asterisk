@@ -1,15 +1,17 @@
 # IMPORTS
 from os import walk, remove
 from os.path import exists, join
-from json import load
+from json import load, dump
 from sys import exc_info
 from copy import deepcopy
-from discord_components import DiscordComponents
+import json
+from turtle import rt
 
 from discord import __version__, Activity, ActivityType, Intents
 from discord.enums import Status
 from discord.permissions import Permissions
 from discord.utils import oauth_url
+from discord.ext.commands import ExtensionAlreadyLoaded
 
 from utils.classes import Bot
 from utils.errorlog import ErrorLog
@@ -32,26 +34,45 @@ DATA_DEFAULTS = {
                 # A notification sent to users when they use a command for the first time.
                 # These are set to true after being executed. Resets by command.
             },
-            "Inventory": {
-                "Weapons": [None, None],  # list(WeaponClass or None)
-                "Abilities": [None, None, None, None, None],  # list(AbilityClass or None)
-                "Armor": [None, None, None, None, None, None],  # list(ArmorClass or None)
+            "Character": {
+                "requires_setup": True,  # Users must set up before being able to use Asterisk to its fullest. It's pretty simple for now.
+
+                "Name": "...",  # Users can use a custom name or "useDiscordName" to use use the user's Discord username.
+                "Gender": "...",  # Female, Male, Other, Undefined
+                "Race": "...",  # Human, Nekojin
+
+                # Current, Level Max
+                "Life": (100, 100),  # How much damage the user can take before being eliminated.
+                "Prana": (100, 100),  # Used for most attacks
+                "Attack": 100,  # Determines which player starts first and who has priority over certain attacks.
+                "Insight": 100,  # Boosts prana regreneration, attack, and defense
+                "Speed": 10,  # Determines which player gets priority over evasion/retaliation
+
+                # Generic item stats include:
+                # name, type, faction, rarity
+
+                # Weapon stats include:
+                # damage, additional defense, bonuses, special effects, experience
+
+                # Armor stats include:
+                # defense, bonuses, special effects, experience
+
+                "Skill": {},  # Skills and tactics can be added here in the form of {"Skill Name": level}
+
+                "Weapons": [None, None],  # list(item or None)
+                "Abilities": [None, None, None, None, None],  # list(item or None)
+                "Armor": [None, None, None, None, None, None],  # list(item or None)
                 "Items": [[None, None, None, None, None],
-                          [None, None, None, None, None]],  # list(ItemClass or None)
-                "Backpack": None  # BackpackClass or None
+                          [None, None, None, None, None]],  # list(item or None)
+                "Storage": [None]  # list(item or None)
             },
-            "Friends": [331551368789622784],  # list(int(UID))
-            # Users will start with having the developer as their first friend.
+
+            "Friend Requests": [331551368789622784],  # list(int(UID))
+            "Friends": [],  # list(int(UID))
+            # Users will start with having the developer as their first friend through the tutorial.
             # They can use this to contact the developer wirelessly. 
             
-            "Location": ((3,3), (5,5))  # New users start in Hotel Elnath, the center.
-        }
-    },
-    "GuildData": {
-        "GID": {
-            "Settings": {
-
-            }
+            "Location": (14, 14)  # New users start in Hotel Elnath, the center.
         }
     },
     "Tokens": {  # Replace ONLY for initialization
@@ -72,27 +93,34 @@ DATA_DEFAULTS = {
 INIT_EXTENSIONS = [
     "admin",
     "background",
+    "classes",
     "commands",
     "events",
     "help",
     "repl",
-    "web"
 ]
 
-if exists("Workspace/Files/ServiceAccountKey.json"):
-    key = load(open("Workspace/Files/ServiceAccountKey.json", "r"))
-else:  # If it doesn't exists assume running on replit
-    try:
-        from replit import db
-        key = dict(db["SAK"])
-    except Exception:
+# 0 = use JSON
+# 1 = use Firebase
+DATA_CLOUD = 0
+
+if DATA_CLOUD:
+    if exists("Files/ServiceAccountKey.json"):
+        key = load(open("Files/ServiceAccountKey.json", "r"))
+    else:
         raise FileNotFoundError("Could not find ServiceAccountKey.json.")
 
-db = FirebaseDB(
-    "https://asterisk-database-default-rtdb.firebaseio.com/", 
-    fp_accountkey_json=key)
+    db = FirebaseDB(
+        "https://asterisk-database-default-rtdb.firebaseio.com/", 
+        fp_accountkey_json=key)
 
-user_data = db.copy()
+    user_data = db.copy()
+
+else:
+    with open("Files/user_data.json", "r") as f:
+        db = None
+        user_data = load(f)
+
 # Check the database
 for key in DATA_DEFAULTS:
     if key not in user_data:
@@ -104,7 +132,7 @@ for key in found_data:
     if key not in user_data:
         user_data.pop(key)  # Remove redundant data
         print(f"[REDUNDANCY] Invalid data \'{key}\' found. "
-              f"Removed key from database.")
+              f"Removed key from file.")
 del found_data  # Remove variable from namespace
 
 config_data = user_data["config"]
@@ -119,12 +147,17 @@ for key in found_data:
     if key not in DATA_DEFAULTS['config']:
         config_data.pop(key)  # Remove redundant data
         print(f"[REDUNDANCY] Invalid config \'{key}\' found. "
-              f"Removed key from database.")
+              f"Removed key from file.")
 del found_data  # Remove variable from namespace
 
-db.update(user_data)
+if DATA_CLOUD:
+    db.update(user_data)
+else:
+    with open("Files/user_data.json", "w") as f:
+        dump(user_data, f)
 
 intents = Intents.default()
+intents.message_content = True
 
 bot = Bot(
     description="An MMORPG parody of the anime `The Asterisk War`.",
@@ -137,7 +170,9 @@ bot = Bot(
     database=db,
     user_data=user_data,   
     defaults=DATA_DEFAULTS,
-    auth=db["Tokens"],
+    auth=user_data["Tokens"],
+    use_firebase=DATA_CLOUD,
+    intents=intents
 )
 
 # If a custom help command is created:
@@ -154,7 +189,7 @@ for root, dirs, files in walk(mypath):
 @bot.event
 async def on_ready():
     app_info = await bot.application_info()
-    bot.owner = bot.get_user(app_info.owner.id)
+    bot.owner = app_info.owner
 
     permissions = Permissions()
     permissions.update(
@@ -177,7 +212,7 @@ async def on_ready():
 
     for cog in INIT_EXTENSIONS:
         try:
-            bot.load_extension(f"cogs.{cog}")
+            await bot.load_extension(f"cogs.{cog}")
             print(f"| Loaded initial cog {cog}")
         except Exception as e:
             try:
@@ -195,7 +230,7 @@ async def on_ready():
           f"| User ID:   {bot.user.id}\n"
           f"| Owner:     {bot.owner}\n"
           f"| Guilds:    {len(bot.guilds)}\n"
-          f"| OAuth URL: {oauth_url(app_info.id, permissions)}\n"
+          f"| OAuth URL: {oauth_url(app_info.id, permissions=permissions)}\n"
           f"#------------------------------#\n")
 
 if __name__ == "__main__":

@@ -25,7 +25,10 @@ self.errorlog: ErrorLog = kwargs.get("errorlog", None)
 """
 async def on_error(self, event_name, *args, **kwargs):
     '''Error handler for Exceptions raised in events'''
-
+    if self.config["debug_mode"]:  # Hold true the purpose for the debug_mode option
+        await super().on_error(*args, **kwargs)
+        return
+        
     # Try to get Exception that was raised
     error = exc_info()  # `from sys import exc_info` at the top of your script
 
@@ -35,8 +38,7 @@ async def on_error(self, event_name, *args, **kwargs):
 
     # Otherwise, use default handler
     else:
-        await super().on_error(event_method=event_name, *args, **kwargs)
-
+        await super().on_error(*args, **kwargs)
 """
 
 # The following check must be added in your `on_ready` event 
@@ -197,7 +199,9 @@ class ErrorLog:
         for i, page in enumerate(em.split()):
             if i:
                 await sleep(0.1)
-            return await self.channel.send(embed=em)
+            
+            msg = await self.channel.send(embed=em)
+            self.bot.error_contexts.update({msg.id: ctx})
 
     @staticmethod
     async def em_tb(error: Tuple, ctx: Context = None, event: str = None) -> Embed:
@@ -217,9 +221,16 @@ class ErrorLog:
 
         em = Embed(color=Colour.red(), title=title, description=f"{description}")
 
-        try:
-            em.set_footer(text=f"This event was caused by user {ctx.author} ({ctx.author.id})")
-        except AttributeError:
+        if hasattr(ctx, "author"):
+            em.add_field(
+                name="Context",
+                inline=False,
+                value=f"User: `{ctx.author}` ({ctx.author.id})\n"
+                      f"Guild: `{ctx.guild if ctx.guild else 'Unavailable'}` ({ctx.guild.id if ctx.guild else '0'})\n"
+                      f"Channel: `{ctx.channel}` ({ctx.channel.id})\n"
+                      f"Message: `{ctx.message.content if ctx.message.content else 'No Content'}`\n"
+                      f"**Copy this message ID and access `bot.error_contexts[<id>]` for Context.**")
+        else:
             em.set_footer(text=f"This event was caused by an element in the source code.")
 
         for field in tb_fields:

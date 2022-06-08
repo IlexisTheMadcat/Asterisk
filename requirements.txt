@@ -1,0 +1,5 @@
+#discord==2.0.0a
+git+https://github.com/Rapptz/discord.py@master
+discordspy
+expiringdict==1.2.1
+firebase_admin
