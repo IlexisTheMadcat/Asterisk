@@ -31,9 +31,7 @@ class MiscCommands(Cog):
                         f'to invite this bot to your server.\n'
         ).set_author(
             name=f"Invite {self.bot.user.name}",
-            icon_url=self.bot.user.avatar.url
-        ).set_footer(
-            text="Provided by MechHub Bot Factory")
+            icon_url=self.bot.user.avatar.url)
         
         await ctx.send(embed=emb)
 
@@ -72,9 +70,7 @@ __`invite`__
 """
         ).set_author(
                 name=self.bot.user.name,
-                icon_url=self.bot.user.avatar.url
-        ).set_footer(
-            text="Provided by MechHub Bot Factory")
+                icon_url=self.bot.user.avatar.url)
         
         await ctx.send(embed=emb)
     
