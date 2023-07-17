@@ -16,6 +16,10 @@ from discord.ext.commands.errors import (
     NotOwner, BadArgument,
     CheckFailure)
 
+# for retrofitting
+from discord.app_commands import command as slash_command, describe
+from discord.app_commands.checks import cooldown
+
 from utils.classes import Embed
 
 class Events(Cog):
@@ -27,6 +31,23 @@ class Events(Cog):
     @Cog.listener()
     async def on_interaction(self, interaction):
         pass
+
+    @cooldown(1, 2)
+    @slash_command(name="r", description="Run a legacy bot command. Original prefix is optional.")
+    @describe(command="Input legacy command message.")
+    async def run(self, interaction, *, command: str):
+        ctx = await Context.from_interaction(interaction)
+
+        if command.startswith(self.bot.command_prefix):
+            ctx.message.content = command
+        else:
+            ctx.message.content = self.bot.command_prefix+command
+
+        await interaction.response.defer(thinking=True)
+
+        await self.on_message(ctx.message)
+
+        await interaction.followup.send("Command completed.")
         
     # Message events
     # --------------------------------------------------------------------------------------------------------------------------
@@ -36,45 +57,9 @@ class Events(Cog):
         if msg.author.id in self.bot.global_cooldown: return
         else: self.bot.global_cooldown.update({msg.author.id:"placeholder"})
 
-        if msg.author.id == 726313554717835284:  
-            # If bot listing supports webhooks
-            ids = msg.content.split(";")
-            voter = int(ids[0])
-            voted_for = int(ids[1])
-
-            if voted_for == self.bot.user.id:
-                user = await self.bot.fetch_user(voter)
-                try:
-                    await user.send("Voting message")
-
-                except HTTPException or Forbidden:
-                    print(f"[❌] User \"{user}\" voted for \"{self.bot.user}\". DM Failed.")
-                else:
-                    print(f"[✅] User \"{user}\" voted for \"{self.bot.user}\".")
-
-                return
-        
-        # Don't respond to bots.
-        if msg.author.id == self.bot.user.id:
-            return  
-        
         # Checks if the message is any attempted command.
         if msg.content.startswith(self.bot.command_prefix) and not msg.content.startswith(self.bot.command_prefix+" "):
-            if str(msg.author.id) not in self.bot.user_data["UserData"]:
-                self.bot.user_data["UserData"][str(msg.author.id)] = deepcopy(self.bot.defaults["UserData"]["UID"])
-            if "GuildData" in self.bot.defaults and msg.guild and str(msg.guild.id) not in self.bot.user_data["GuildData"]:
-                self.bot.user_data["GuildData"][str(msg.guild.id)] = deepcopy(self.bot.defaults["GuildData"]["GID"])
-
-            if not self.bot.user_data["UserData"][str(msg.author.id)]["Settings"]["NotificationsDue"]["FirstTime"]:
-                with suppress(Forbidden):
-                    await msg.author.send(embed=Embed(
-                        title="First Time Interaction Notification",
-                        description=self.bot.config["first_time_tip"]))
-                
-                self.bot.user_data["UserData"][str(msg.author.id)]["Settings"]["NotificationsDue"]["FirstTime"] = True
-
             self.bot.inactive = 0
-        
             await self.bot.process_commands(msg)
             return
     
