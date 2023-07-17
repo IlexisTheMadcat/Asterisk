@@ -7,15 +7,15 @@ from typing import Union
 # Now create a class to perform CRUD operations on
 class FirebaseDB:
     """Create a simple CRUD operations helper for Google Firebase Realtime Databases.\n
-    **Initiate with these arguments:**\n
-    `databaseURL` - Works with Realtime Databases. Open it and copy its link.\n
+    **Instantiate with these arguments:**\n
+    `databaseURL` - URL of the Realtime Database.\n
     `fp_accountkey_json` - Fetch this file from the Project settings:\n
         Service Accounts > Firebase Admin SDK > Python > Generate new private key.\n
     `app_name` - Initialize the app with this name. *Note that no two instances of this class can have the same name.*\n
     `dbroot_path` - Choose the path of the database dict to start from. This is the destination key whose value will be overwritten.\n
 
     **Returns:**\n 
-    ー Attr:`FirebaseDB.project_id` - The project ID that this class is operating on. Useful to check if 2 instances are running on the same project.\n
+    ー Attr: `FirebaseDB.project_id` - The project ID that this class is operating on. Useful to check if 2 instances are running on the same project.\n
     ー Attr: `FirebaseDB.instance_name` - Returns `app_name` from `__init__` for later use. Again, no two instances with the same name can co-exist.\n
     ー Attr: `FirebaseDB.refer` - The Reference object that this class operates on. You can perform manual operations with it if you know how to use the SDK.\n
     ー Attr: `FirebaseDB._dbroot_path` - Returns `dbroot_path` from `__init__` for later use. Used to stay persistant with the root key.\n
