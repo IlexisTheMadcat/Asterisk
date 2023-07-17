@@ -5,7 +5,6 @@ from json import load, dump
 from sys import exc_info
 from copy import deepcopy
 import json
-from turtle import rt
 
 from discord import __version__, Activity, ActivityType, Intents
 from discord.enums import Status
@@ -16,6 +15,11 @@ from discord.ext.commands import ExtensionAlreadyLoaded
 from utils.classes import Bot
 from utils.errorlog import ErrorLog
 from utils.FirebaseDB import FirebaseDB
+
+# The following files/folders are gitignored but are used by this bot:
+# /Workspace
+# /Files/ServiceAccountKey.json
+# /Files/user_data.json
 
 
 DATA_DEFAULTS = {
@@ -46,7 +50,7 @@ DATA_DEFAULTS = {
                 "Prana": (100, 100),  # Used for most attacks
                 "Attack": 100,  # Determines which player starts first and who has priority over certain attacks.
                 "Insight": 100,  # Boosts prana regreneration, attack, and defense
-                "Speed": 10,  # Determines which player gets priority over evasion/retaliation
+                "Speed": 100,  # Determines which player gets priority over evasion/retaliation
 
                 # Generic item stats include:
                 # name, type, faction, rarity
@@ -108,15 +112,18 @@ if DATA_CLOUD:
     if exists("Files/ServiceAccountKey.json"):
         key = load(open("Files/ServiceAccountKey.json", "r"))
     else:
-        raise FileNotFoundError("Could not find ServiceAccountKey.json.")
+        raise FileNotFoundError("Could not find ServiceAccountKey.json; Required to use Firebase")
 
     db = FirebaseDB(
-        "https://asterisk-database-default-rtdb.firebaseio.com/", 
+        "https://asterisk-database-default-rtdb.firebaseio.com/",  # Firebase rtdb URL
         fp_accountkey_json=key)
 
     user_data = db.copy()
 
 else:
+    if not exists("Files/user_data.json"):  # create UserData if not present
+        open("Files/user_data.json", "x").close()
+    
     with open("Files/user_data.json", "r") as f:
         db = None
         user_data = load(f)
